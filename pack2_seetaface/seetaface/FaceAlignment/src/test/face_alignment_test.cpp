@@ -34,8 +34,9 @@
 #include <iostream>
 #include <string>
 
-#include "cv.h"
-#include "highgui.h"
+#include <opencv2/opencv.hpp>
+#include <opencv/highgui.h>
+#include <opencv2/imgproc/imgproc.hpp>
 
 #include "face_detection.h"
 #include "face_alignment.h"
@@ -44,14 +45,14 @@
 std::string DATA_DIR = "../../data/";
 std::string MODEL_DIR = "../../model/";
 #else
-std::string DATA_DIR = "./data/";
-std::string MODEL_DIR = "./model/";
+std::string DATA_DIR = "../data/";
+std::string MODEL_DIR = "../model/";
 #endif
 
 int main(int argc, char** argv)
 {
   // Initialize face detection model
-  seeta::FaceDetection detector("../../../FaceDetection/model/seeta_fd_frontal_v1.0.bin");
+  seeta::FaceDetection detector("seeta_fd_frontal_v1.0.bin");
   detector.SetMinFaceSize(40);
   detector.SetScoreThresh(2.f);
   detector.SetImagePyramidScaleFactor(0.8f);
