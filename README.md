@@ -27,3 +27,18 @@ Several face recognition algorithms evaluation for research purpose.
 ### How to Run
 1. **Detection**
    - go
+
+
+## pack3: SeetaFace2
+### About
+    a.........
+### How to Run
+    b...
+
+
+# Evaluation Protocol
+## Recognition
+### Common Configs
+   - 4x people
+   - 10x images from each people (several positions)
+### 
