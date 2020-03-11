@@ -10,6 +10,7 @@ import imutils
 import pickle
 import time
 import cv2
+from pathlib import Path
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
@@ -17,6 +18,8 @@ ap.add_argument("-c", "--cascade", required=True,
 	help = "path to where the face cascade resides")
 ap.add_argument("-e", "--encodings", required=True,
 	help="path to serialized db of facial encodings")
+ap.add_argument("-i", "--imagedir", required=True,
+	help="path to the input images directory")
 args = vars(ap.parse_args())
 
 # load the known faces and embeddings along with OpenCV's Haar
@@ -26,19 +29,22 @@ data = pickle.loads(open(args["encodings"], "rb").read())
 detector = cv2.CascadeClassifier(args["cascade"])
 
 # initialize the video stream and allow the camera sensor to warm up
-print("[INFO] starting video stream...")
-vs = VideoStream(src=0).start()
+# print("[INFO] starting video stream...")
+# vs = VideoStream(src=0).start()
 # vs = VideoStream(usePiCamera=True).start()
-time.sleep(2.0)
+# time.sleep(2.0)
 
 # start the FPS counter
-fps = FPS().start()
+# fps = FPS().start()
 
-# loop over frames from the video file stream
-while True:
+im_dir = Path(args["imagedir"])
+im_list = [str(f) for f in im_dir.glob("*.png")]
+im_list.sort()
+for im_path in im_list:
 	# grab the frame from the threaded video stream and resize it
 	# to 500px (to speedup processing)
-	frame = vs.read()
+	# frame = vs.read()
+	frame = cv2.imread(im_path)
 	frame = imutils.resize(frame, width=500)
 	
 	# convert the input frame from (1) BGR to grayscale (for face
@@ -98,23 +104,25 @@ while True:
 		y = top - 15 if top - 15 > 15 else top + 15
 		cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
 			0.75, (0, 255, 0), 2)
+	cv2.imshow("Frame", frame)
+	cv2.waitKey()
 
 	# display the image to our screen
-	cv2.imshow("Frame", frame)
-	key = cv2.waitKey(1) & 0xFF
+	# cv2.imshow("Frame", frame)
+	# key = cv2.waitKey(1) & 0xFF
 
-	# if the `q` key was pressed, break from the loop
-	if key == ord("q"):
-		break
+	# # if the `q` key was pressed, break from the loop
+	# if key == ord("q"):
+	# 	break
 
-	# update the FPS counter
-	fps.update()
+	# # update the FPS counter
+	# fps.update()
 
 # stop the timer and display FPS information
-fps.stop()
-print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
-print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
+# fps.stop()
+# print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
+# print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
 # do a bit of cleanup
-cv2.destroyAllWindows()
-vs.stop()
+# cv2.destroyAllWindows()
+# vs.stop()
