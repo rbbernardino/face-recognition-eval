@@ -2,15 +2,15 @@
 # python pi_face_recognition.py --cascade haarcascade_frontalface_default.xml --encodings encodings.pickle
 
 # import the necessary packages
-from imutils.video import VideoStream
-from imutils.video import FPS
 import face_recognition
 import argparse
 import imutils
+from imutils.video import FPS
 import pickle
-import time
 import cv2
 from pathlib import Path
+
+DEBUG = False
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
@@ -25,23 +25,34 @@ print("[INFO] loading encodings + face detector...")
 data = pickle.loads(open(args["encodings"], "rb").read())
 detector = cv2.CascadeClassifier(args["cascade"])
 
-# initialize the video stream and allow the camera sensor to warm up
-# print("[INFO] starting video stream...")
-# vs = VideoStream(src=0).start()
-# vs = VideoStream(usePiCamera=True).start()
-# time.sleep(2.0)
-
-# start the FPS counter
-# fps = FPS().start()
-
 im_dir = Path(args["imagedir"])
-im_list = [str(f) for f in im_dir.glob("*.png")]
+im_list = [f for f in im_dir.glob("*.png")]
+if len(im_list) == 0:
+    print("empty directory"); exit(1)
 im_list.sort()
-for im_path in im_list:
+right_face_match = 0
+
+print("[INFO] processing images...")
+fps = FPS().start()
+for (i, im_path) in enumerate(im_list):
+    fps.stop()
+    right_match_percent_str = "{:.2f}%".format(100 * right_face_match/len(im_list))
+    if i % 10 == 0:
+        print("Processing image {:<4} | r-match {:>5} | {:02.4} FPS"
+              .format(i,right_match_percent_str,fps.fps()), end='\r', flush=True)
+    
+    # get image information
+    correct_class = im_path.stem.split('_')[0]
+    if correct_class.startswith("unkown"):
+        correct_nfaces = 0
+        correct_class = "unkown"
+    else:
+        correct_nfaces = 1
+
     # grab the frame from the threaded video stream and resize it
     # to 500px (to speedup processing)
     # frame = vs.read()
-    frame = cv2.imread(im_path)
+    frame = cv2.imread(str(im_path))
     frame = imutils.resize(frame, width=500)
 
     # convert the input frame from (1) BGR to grayscale (for face
@@ -95,6 +106,7 @@ for im_path in im_list:
         names.append(name)
 
     # loop over the recognized faces
+    counted_right_match = False
     for ((top, right, bottom, left), name) in zip(boxes, names):
         # draw the predicted face name on the image
         cv2.rectangle(frame, (left, top), (right, bottom),
@@ -102,25 +114,20 @@ for im_path in im_list:
         y = top - 15 if top - 15 > 15 else top + 15
         cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
             0.75, (0, 255, 0), 2)
-    cv2.imshow("Frame", frame)
-    cv2.waitKey()
+        if name == correct_class and not counted_right_match:
+            right_face_match += 1
+            counted_right_match = True
+    fps.update()
 
-    # display the image to our screen
-    # cv2.imshow("Frame", frame)
-    # key = cv2.waitKey(1) & 0xFF
 
-    # # if the `q` key was pressed, break from the loop
-    # if key == ord("q"):
-    #     break
-
-    # # update the FPS counter
-    # fps.update()
+print("")
+right_match_percent_str = "{:.2f}%".format(100 * right_face_match/len(im_list))
+print("Total correct recognition match: {} ({})".format(right_face_match, right_match_percent_str))
 
 # stop the timer and display FPS information
-# fps.stop()
-# print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
-# print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
+fps.stop()
+print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
+print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
-# do a bit of cleanup
-# cv2.destroyAllWindows()
-# vs.stop()
+# cv2.imshow("Frame", frame)
+# cv2.waitKey()

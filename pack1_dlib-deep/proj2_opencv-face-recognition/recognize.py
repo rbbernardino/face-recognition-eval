@@ -8,10 +8,13 @@
 import numpy as np
 import argparse
 import imutils
+from imutils.video import FPS
 import pickle
 import cv2
 import os
 from pathlib import Path
+
+DEBUG = False
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
@@ -46,15 +49,29 @@ le = pickle.loads(open(args["le"], "rb").read())
 
 im_list = [f for f in Path(args["imagedir"]).glob("*.png")]
 im_list.sort()
-wrong_nface_count = 0
-wrong_face_match = 0
 right_face_match = 0
 print("[INFO] processing images...")
+
+# start the FPS throughput estimator
+fps = FPS().start()
 for (i, im_path) in enumerate(im_list):
-    print(f"Processing image {i}", end='\r', flush=True)
+    fps.stop()
+    right_match_percent_str = "{:.2f}%".format(100 * right_face_match/len(im_list))
+    if i % 10 == 0:
+        print("Processing image {:<4} | r-match {:>5} | {:.4} FPS"
+              .format(i,right_match_percent_str,fps.fps()), end='\r', flush=True)
+    
+    # get image information
+    correct_class = im_path.stem.split('_')[0]
+    if correct_class.startswith("unkown"):
+        correct_nfaces = 0
+        correct_class = "unkown"
+    else:
+        correct_nfaces = 1
+
     # load the image, resize it to have a width of 600 pixels (while
     # maintaining the aspect ratio), and then grab the image dimensions
-    image = cv2.imread(args["image"])
+    image = cv2.imread(str(im_path))
     image = imutils.resize(image, width=600)
     (h, w) = image.shape[:2]
 
@@ -75,6 +92,7 @@ for (i, im_path) in enumerate(im_list):
         confidence = detections[0, 0, i, 2]
 
         # filter out weak detections
+        name = "unkown"
         if confidence > args["confidence"]:
             # compute the (x, y)-coordinates of the bounding box for the
             # face
@@ -103,15 +121,30 @@ for (i, im_path) in enumerate(im_list):
             proba = preds[j]
             name = le.classes_[j]
 
+    if name == correct_class:
+        right_face_match += 1
+        counted_right_match = True
+
             # draw the bounding box of the face along with the associated
             # probability
-            text = "{}: {:.2f}%".format(name, proba * 100)
-            y = startY - 10 if startY - 10 > 10 else startY + 10
-            cv2.rectangle(image, (startX, startY), (endX, endY),
-                (0, 0, 255), 2)
-            cv2.putText(image, text, (startX, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 2)
+            # text = "{}: {:.2f}%".format(name, proba * 100)
+            # y = startY - 10 if startY - 10 > 10 else startY + 10
+            # cv2.rectangle(image, (startX, startY), (endX, endY),
+            #     (0, 0, 255), 2)
+            # cv2.putText(image, text, (startX, y),
+            #     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 2)
+    # update the FPS counter
+    fps.update()
+
+
+right_match_percent_str = "{:.2f}%".format(100 * right_face_match/len(im_list))
+print("Total correct recognition match: {} ({})".format(right_face_match, right_match_percent_str))
+
+# stop the timer and display FPS information
+fps.stop()
+print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
+print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
 # show the output image
-cv2.imshow("Image", image)
-cv2.waitKey(0)
+# cv2.imshow("Image", image)
+# cv2.waitKey(0)

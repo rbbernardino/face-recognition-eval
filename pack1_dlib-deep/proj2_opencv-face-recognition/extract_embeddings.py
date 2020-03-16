@@ -49,10 +49,11 @@ knownNames = []
 total = 0
 
 # loop over the image paths
+faces_n = 0
 for (i, imagePath) in enumerate(imagePaths):
     # extract the person name from the image path
-    print("[INFO] processing image {}/{}".format(i + 1,
-        len(imagePaths)))
+    print("[INFO] processing image {}/{}\r".format(i + 1,
+                                                   len(imagePaths)), end='')
     name = imagePath.split(os.path.sep)[-2]
 
     # load the image, resize it to have a width of 600 pixels (while
@@ -74,6 +75,7 @@ for (i, imagePath) in enumerate(imagePaths):
 
     # ensure at least one face was found
     if len(detections) > 0:
+        faces_n += 1
         # we're making the assumption that each image has only ONE
         # face, so find the bounding box with the largest probability
         i = np.argmax(detections[0, 0, :, 2])
@@ -110,6 +112,7 @@ for (i, imagePath) in enumerate(imagePaths):
             knownEmbeddings.append(vec.flatten())
             total += 1
 
+print("Detected {} faces".format(faces_n))
 # dump the facial embeddings + names to disk
 print("[INFO] serializing {} encodings...".format(total))
 data = {"embeddings": knownEmbeddings, "names": knownNames}
