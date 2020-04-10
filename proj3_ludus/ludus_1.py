@@ -1,18 +1,15 @@
+# To add a new cell, type '# %%'
+# To add a new markdown cell, type '# %% [markdown]'
 # %%
+# SELECTS TENSORFLOW VERSION (soon default will be tf2)
 try:
     # %tensorflow_version only exists in Colab.
     %tensorflow_version 2.x
 except Exception:
     pass
 
-# %%
-###################################
-# CHECK TIME LEFT before next reboot
-import time
-import psutil
-uptime = time.time() - psutil.boot_time()
-remain = 12 * 60 * 60 - uptime
-print(time.strftime('%H:%M:%S', time.gmtime(remain)))
+# To add a new cell, type '# %%'
+# To add a new markdown cell, type '# %% [markdown]'
 
 # %%
 ###################################
@@ -27,46 +24,37 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow_hub as hub
 
-# %%
+tf.get_logger().propagate = False  # avoid duplicated warnings
+
+###################################
+# LOAD CUSTOM LIBRARIES
+# assume already linked "mylibs" directory o /content of colab
+import mylibs.aiutils as aiutils
+
 ###################################
 # PRINT DEVICE INFO
-print("TF version:", tf.__version__)
-print("Hub version:", hub.__version__)
-if tf.config.list_physical_devices('GPU'):
-    local_device_protos = tf.python.client.device_lib.list_local_devices()
-    gpu_details = [x for x in local_device_protos if x.device_type == 'GPU'][0]
-    gpu_name = ''
-    for d in gpu_details.physical_device_desc.split(', '):
-        if d.split(':')[0] == 'name':
-            gpu_name = d.split(': ')[1]
-            break
-    print(f"GPU is available: {gpu_name}")
-else:
-    print("GPU is NOT AVAILABLE")
+aiutils.print_device_info()
 
 # %%
 ###################################
 # OPTIONS (MODEL TO USE, etc.)
-
-# tensorflow configs
-tf.get_logger().propagate = False  # avoid duplicated warnings
-
 module_selection = ("mobilenet_v2_100_224", 224)
 # module_selection = ("mobilenet_v2_100_224", 224)
 # module_selection = ("inception_v3", 299)
 
 handle_base, pixels = module_selection
+MODULE_HANDLE = f"https://tfhub.dev/google/imagenet/{handle_base}/feature_vector/4"
 IMAGE_SIZE = (pixels, pixels)
 BATCH_SIZE = 32
 MODEL_OUTPUT_DIR = '/content/gdrive/My Drive/Colab Notebooks/models_output/ludus/model1/'
 
 print(f"Using {MODULE_HANDLE} with input size {IMAGE_SIZE}")
-print(f"Data augmentation: {DO_DATA_AUGMENTATION}")
 
-# %%
 ###################################
 # DATASET PATH
 data_dir = '/content/gdrive/My Drive/Colab Notebooks/data/ludus'
+train_dir = data_dir + "/train_set1/train"
+validation_dir = data_dir + "/train_set1/valid"
 
 # %%
 ###################################
@@ -80,10 +68,17 @@ valid_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
 train_datagen = valid_datagen
 
 valid_generator = valid_datagen.flow_from_directory(
-    data_dir + "/valid", shuffle=False, **dataflow_kwargs)
+    validation_dir, shuffle=False, **dataflow_kwargs)
 
 train_generator = train_datagen.flow_from_directory(
-    data_dir + "/train", subset="training", shuffle=True, **dataflow_kwargs)
+    train_dir, subset="training", shuffle=True, **dataflow_kwargs)
+
+# Save the classes in order according to the labels indices
+class_dict = train_generator.class_indices
+class_list = sorted(class_dict.keys(), key=lambda x: class_dict[x])
+class_list_str = '\n'.join(list(class_list))
+with open(MODEL_OUTPUT_DIR + "retrained_labels.txt", 'w') as f:
+    f.write(class_list_str)
 
 # %%
 ###################################
@@ -120,8 +115,10 @@ hist = model.fit(
 # %%
 ###################################
 # SAVE THE MODEL
+# Don't need to save weights, as .save() already include them!
 tf.saved_model.save(model, MODEL_OUTPUT_DIR)
 model.save(MODEL_OUTPUT_DIR + "ludus_model1.h5")
+# model.save_weights(MODEL_OUTPUT_DIR + "ludus_model1_weights.h5")
 
 # %%
 ###################################
@@ -144,47 +141,7 @@ plt.plot(hist["val_accuracy"])
 ###################################
 # EVALUATE
 # will give loss = 0.5146 | acc = 1.0
-# loaded_model_2.evaluate(valid_generator, steps=validation_steps)
-model.evaluate(generator=valid_generator, steps=validation_steps)
-
-# %%
-###################################
-# TEST (predict)
-test_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
-    **datagen_kwargs)
-test_generator = test_datagen.flow_from_directory(
-    data_dir + "/test", shuffle=False, **dataflow_kwargs)
-labels = (train_generator.class_indices)
-labels = dict((v, k) for k, v in labels.items())
-
-STEP_SIZE_TEST = test_generator.n // test_generator.batch_size
-test_generator.reset()  # TODO confirm it is necessary
-pred = model.predict(test_generator,
-                     steps=STEP_SIZE_TEST,
-                     verbose=1)
-
-# %%
-###################################
-# SAVE PREDICTIONS
-predicted_class_indices = np.argmax(pred, axis=1)
-predictions = [labels[k] for k in predicted_class_indices]
-
-filenames = test_generator.filenames
-results = pd.DataFrame({"Filename":filenames,
-                       "Predictions":predictions})
-results.to_csv("results.csv",index=False)
-
-# %%
-###################################
-# LOAD THE MODEL
-# saved model
-loaded_model = tf.saved_model.load(MODEL_OUTPUT_DIR)
-
-# models.save
-loaded_model_2 = tf.keras.models.load_model(
-    MODEL_OUTPUT_DIR + "ludus_model1.h5",
-    custom_objects={'KerasLayer': hub.KerasLayer})
-
+model.evaluate(valid_generator, steps=validation_steps)
 
 # %%
 ###################################
@@ -208,6 +165,7 @@ if optimize_lite_model and num_calibration_examples:
         num_calibration_examples)
 
 # %%
+# convert
 converter = tf.lite.TFLiteConverter.from_saved_model(MODEL_OUTPUT_DIR)
 if optimize_lite_model:
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -216,6 +174,7 @@ if optimize_lite_model:
 lite_model_content = converter.convert()
 
 # %%
+# save the TF model
 with open(f"{MODEL_OUTPUT_DIR}/lite_ludus_model1", "wb") as f:
     f.write(lite_model_content)
 print("Wrote %sTFLite model of %d bytes." %
